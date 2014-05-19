@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>CSV Analitics</title>
+    
+    <!-- Stylesheets -->
+    <link rel='stylesheet' href='http://cdnjs.cloudflare.com/ajax/libs/normalize/3.0.1/normalize.min.css' />
+    
+    <!-- Application layout styles -->    
+    <style>
+        html, body{
+            background-color : #f8f8f8;
+            font-size : 16px;
+            color : #303030;
+        }
+        a{ color : #0162A3; text-decoration : none; }
+        h1, h2, h3, h4, h5, h6, ul { margin : 0; }
+        input[type='file']{ font-size : .8em; }
+        
+        /* layout components */
+        .container{
+            display : blocK;
+            max-width : 55em;
+            overflow : hidden;
+        }
+        .center{
+            margin-left : auto;
+            margin-right : auto;
+        }
+        
+        .round{
+            -webkit-border-radius : 2px 2px;
+               -moz-border-radius : 2px 2px;
+                 -o-border-radius : 2px 2px;
+                -ms-border-radius : 2px 2px;
+                    border-radius : 2px 2px;
+        }
+        
+        .right{
+            float : right;
+        }
+        .left{
+            float: left;
+        }
+        
+        /* toolbar component */
+        .toolbar{
+            width : auto;
+            padding : .7em 1em;
+            background-color : #fafafa;
+            overflow: hidden;
+        }
+        
+        /* button component */
+        .button{
+            display: inline-block;
+            border : none;
+            padding : .4em .8em;
+            
+            -webkit-transition : 1s all ease-out;
+        }
+        .button.green{
+            color : #fafafa;
+            background-color : #90A959;
+        }
+        .button.green:hover, .button.green:focus{
+            background-color : #799514;
+        }
+        
+        header{
+            background-color : #0162A3;
+            margin-top : .5em;
+            padding : .5em 2.5em;
+            -webkit-box-shadow : 2px 2px 3px #ccc;
+        }
+        header h1 a{ color : #fafafa; }
+        header h4{ color : #ccc; }
+        
+        #application{
+            background-color : #fff;
+            margin-bottom : 3em;
+            min-height : 800px;
+            padding : 1em 1.5em;
+            -webkit-box-shadow : 2px 2px 5px #eee;
+        }
+        
+    </style>
+    
+</head>
+<body>
+    
+    <!-- Application layout -->
+    <header class='container center'>
+        <h1>
+            <a href='#' title='CSV Analitics'>CSV Analitics</a>
+        </h1>
+        <h4>CSV Analitics make easy!</h4>
+    </header>
+    
+    <section id='application' class='container center'>
+        <div class='toolbar center'>
+            <input id='textFileSelection' accepts='*.csv' type='file'>
+            <button id='buttonProcessFile' class='button round green right'>Process File</button>
+        </div>
+        <div class="content">
+            
+        </div>
+    </section>
+    
+    <script src='https://code.jquery.com/jquery-1.11.1.js'></script>
+    <script type='text/javascript'>
+        
+        $(document).on('ready', function(){
+            $('#buttonProcessFile').on('click', function(e){
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                
+                var selector = new FileSelector($('#textFileSelection')[0]);
+                var result = selector.readFileContent();
+                result.done(function(data){
+                    $('.content').html(data);
+                    var analizer = new CsvAnalizer(data);
+                    var grid = analizer.getContentAsGrid();
+                    console.log(grid);
+                });
+                result.fail(function(error){
+                    console.log(error);
+                });
+            });
+        });
+        
+        
+        // File selector object
+        // Allows to get the contents from files selected trought input[file]
+        var FileSelector = function(fileInput){
+            this.fileInput = fileInput;
+        };
+        
+        FileSelector.prototype.getSelectedFile = function(){
+            return this.fileInput.files[0];
+        };
+        
+        FileSelector.prototype.readFileContent = function(callback){
+            var deferred = $.Deferred(),
+                promise = deferred.promise();
+            
+            console.log(deferred, promise);
+            
+            var file = this.getSelectedFile();
+            
+            // verify if there is any selected files
+            if (file) {
+                
+                // create a file reader object for async reading of files content
+                var reader = new FileReader();
+                reader.readAsText(file, "UTF-8");
+                
+                reader.onload = function (evt) {
+                    // resolve the promise, with the file content as parameter
+                    deferred.resolve(evt.target.result);
+                }
+                reader.onerror = function (evt) {
+                    deferred.reject('Error reading the files content');
+                }
+            }else{
+                deferred.reject('There is no selected file');
+            }
+            
+            return promise;
+        };
+        
+        
+        // CsvAnalizar Object
+        var CsvAnalizer = function(file){
+            this.file = file;
+            this.rows = this.file.split(this.rowSeparator)
+        };
+        
+        CsvAnalizer.prototype.rowSeparator = '\n';
+        CsvAnalizer.prototype.columnSeparator = ',';
+        
+        // Gets the headers of CSV file
+        CsvAnalizer.prototype.getFileHeaders = function(){
+            var header = this.rows[0];
+            
+            var headers = headers = header.split(this.columnSeparator)
+            
+            return headers;
+        };
+        
+        // Verify if there is any content as rows
+        CsvAnalizer.prototype.isContentEmpty = function(){
+            return this.rows.length === 0;
+        };
+        
+        // Gets file contents as a grid of elements
+        CsvAnalizer.prototype.getContentAsGrid = function(){
+            var grid = [];
+
+            this.rows.forEach(function(row, ri){
+                
+                // split each row in columns
+                var columns = row.split();
+                columns.forEach(function(column, ci){
+                    var oColumn = {
+                        content : column,
+                        type : typeof(column)
+                    };
+                    
+                    grid[ri][ci] = oColumn;
+                });
+            });
+        
+            return grid;
+        };
+        
+        
+    </script>
+</body>
+</html>
