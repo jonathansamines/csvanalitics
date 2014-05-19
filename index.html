@@ -17,6 +17,11 @@
         a{ color : #0162A3; text-decoration : none; }
         h1, h2, h3, h4, h5, h6, ul { margin : 0; }
         input[type='file']{ font-size : .8em; }
+        select{ 
+            margin : .5em 1em; 
+            padding : .2em .8em;
+            border : 1px solid #ccc;
+        }
         
         /* layout components */
         .container{
@@ -68,9 +73,47 @@
             background-color : #799514;
         }
         
+        /* label component */
+        .label{
+            display : inline-block;
+            padding : .2em .5em;
+        }
+            .label.yellow{
+                color : #fafafa;
+                background-color : #F7CA87;
+            }
+        
+        /*  table component */
+        .table{ text-align : center; color : #505050; width : 95%; }
+
+            .table caption{
+                padding : .5em 1em;
+                font-weight : bold;
+                text-align : left;
+                border-bottom : 1px solid #7DAFC2;
+            }
+    
+            .table thead{
+                background-color : #fff;
+                border-bottom : 1px solid #e0e0e0;
+                font-size : .9rem;
+            }
+            .table thead th{
+                padding : 1em 1.4em;
+                text-align : center;
+            }
+            .table.sorted thead th{}
+                
+                .table tbody{}
+                    .table tbody{ font-size : .8em;  }
+                    .table tbody td{
+                        padding : .6em 1em;
+                    }
+        
+        /* application styles */
         header{
             background-color : #0162A3;
-            margin-top : .5em;
+            margin-top : 1em;
             padding : .5em 2.5em;
             -webkit-box-shadow : 2px 2px 3px #ccc;
         }
@@ -100,11 +143,11 @@
     
     <section id='application' class='container center'>
         <div class='toolbar center'>
-            <input id='textFileSelection' accepts='*.csv' type='file'>
+            <input id='textFileSelection' type='file'>
             <button id='buttonProcessFile' class='button round green right'>Process File</button>
         </div>
         <div class="content">
-            
+            <table id='tableGridData' class='table sorted center'></table>
         </div>
     </section>
     
@@ -112,23 +155,144 @@
     <script type='text/javascript'>
         
         $(document).on('ready', function(){
-            $('#buttonProcessFile').on('click', function(e){
+            var $buttonProcessFile = $('#buttonProcessFile'),
+                $textFileSelection = $('#textFileSelection'),
+                $tableGridData = $('#tableGridData');
+
+            $buttonProcessFile.on('click', function(e){
                 e.preventDefault();
                 e.stopImmediatePropagation();
                 
-                var selector = new FileSelector($('#textFileSelection')[0]);
+                var selector = new FileSelector($textFileSelection[0]);
                 var result = selector.readFileContent();
+                
                 result.done(function(data){
-                    $('.content').html(data);
                     var analizer = new CsvAnalizer(data);
-                    var grid = analizer.getContentAsGrid();
-                    console.log(grid);
+                    var source = analizer.getContentAsGrid(function(column){
+                        return column.toLowerCase() === "quetsol";
+                    });
+                    
+                    var table = new TableView(selector.getSelectedFile().name, $tableGridData);
+                    table.bind(source, analizer.getHeaders());
                 });
+                
                 result.fail(function(error){
                     console.log(error);
                 });
             });
         });
+        
+        // TableView
+        // Allow to create a view of table, from grid source
+        // <param name='title'>Title of table, used for caption tag</param>
+        // <param name='table'>Table element</param>
+        var TableView = function(title, table){
+            this.$table = table;
+            this.title = title;
+            
+            var sortMode = 'DESC',
+                self = this;
+            
+            // create sort options
+            this.$table.on('click', '[data-sort-column]', function(e){
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                
+                self.sort($(this).attr('data-sort-column'), sortMode);
+                
+                if(sortMode === 'ASC'){
+                    sortMode = 'DESC';
+                }else{
+                    sortMode = 'ASC';
+                }
+            });
+        };
+        
+        TableView.prototype.createHeaders = function(headers){
+            var $head = $('<thead><tr></tr></thead>');
+                
+            // add each header title as thead item
+            headers.forEach(function(header, i){
+                var $header = $('<th><a href="#" title="' + header + '" data-sort-column="' + header + '">' + header + '</a></th>');
+                $head.append($header);
+            });
+            
+            return $head;
+        };
+        
+        TableView.prototype.createRows = function(rows){
+            var $body = $('<tbody></tbody>');
+            
+            // loop rows to create table elements
+            rows.forEach(function(row, ri){
+                var $row = $('<tr></tr>');
+                
+                // loop columns of each row
+                row.forEach(function(column, ci){
+                    var content = column.content;
+                    
+                    if(column.isMarkword){
+                         content = '<strong class="label yellow round">' + column.content + '</strong>';
+                    }
+                    
+                    var $column = $('<td data-column-value="' + column.content + '" data-column="' + column.column + '">' + content + '</td>');
+                    $row.append($column);
+                });
+                
+                $body.append($row);
+            });
+            
+            return $body;
+        };
+        
+        
+        TableView.prototype.bind = function(source, headers){
+            this.source = source;
+            
+            // empty table items
+            this.$table.empty();
+                        
+            // creating table title
+            var $caption = $('<caption> Selected filename : ' + this.title + '</caption>');
+            this.$table.append($caption);
+            
+            // creating table headers
+            var $header = this.createHeaders(headers);
+            this.$table.append($header);
+            
+            // creating table body
+            var $body = this.createRows(source);
+            this.$table.append($body);
+        };
+        
+        TableView.prototype.sort = function(column, mode){
+            var $body = this.$table.find('tbody');
+            
+            
+            // the order is specified by the following rules
+            // 1. All numbers are smaller than letters, and are ordered according to javascript order algorithm
+            // 2. The letters are ordered alphabethicly, accordying to javascript order algorithm
+            this.source.sort(function(row, nextRow){
+                for(var c = 0; c <= row.length - 1; c++){
+                    var column = row[c],
+                        nextColumn = nextRow[c];
+                    
+                    if(column.column !== column) continue;
+                    
+                    // verify the order mode
+                    if(mode.toLowerCase() === "ASC"){
+                        return column.content - nextColumn.content;
+                    }else{
+                        return nextColumn.content - column.content;
+                    }
+                    
+                }
+            });
+            
+            this.$table.find('tbody').empty();
+            var $body = this.createRows(this.source);
+            this.$table.append($body);
+        };
         
         
         // File selector object
@@ -145,24 +309,27 @@
             var deferred = $.Deferred(),
                 promise = deferred.promise();
             
-            console.log(deferred, promise);
-            
             var file = this.getSelectedFile();
-            
+
             // verify if there is any selected files
             if (file) {
                 
-                // create a file reader object for async reading of files content
-                var reader = new FileReader();
-                reader.readAsText(file, "UTF-8");
+                // verify if browser support the filereader api
+                if(window.FileReader){
+                    var reader = new FileReader();
+                    reader.readAsText(file, "UTF-8");
+
+                    reader.onload = function (evt) {
+                        // resolve the promise, with the file content as parameter
+                        deferred.resolve(evt.target.result);
+                    }
+                    reader.onerror = function (evt) {
+                        deferred.reject('Error reading the files content');
+                    }
+                }else{
+                    deferrend.reject('Reading file not supported!');
+                }
                 
-                reader.onload = function (evt) {
-                    // resolve the promise, with the file content as parameter
-                    deferred.resolve(evt.target.result);
-                }
-                reader.onerror = function (evt) {
-                    deferred.reject('Error reading the files content');
-                }
             }else{
                 deferred.reject('There is no selected file');
             }
@@ -174,14 +341,15 @@
         // CsvAnalizar Object
         var CsvAnalizer = function(file){
             this.file = file;
-            this.rows = this.file.split(this.rowSeparator)
+            this.rows = this.file.split(this.rowSeparator);
+            this.rows.pop(); // remove the last line ( is an empty row )
         };
         
         CsvAnalizer.prototype.rowSeparator = '\n';
         CsvAnalizer.prototype.columnSeparator = ',';
         
         // Gets the headers of CSV file
-        CsvAnalizer.prototype.getFileHeaders = function(){
+        CsvAnalizer.prototype.getHeaders = function(){
             var header = this.rows[0];
             
             var headers = headers = header.split(this.columnSeparator)
@@ -195,20 +363,27 @@
         };
         
         // Gets file contents as a grid of elements
-        CsvAnalizer.prototype.getContentAsGrid = function(){
-            var grid = [];
+        CsvAnalizer.prototype.getContentAsGrid = function(isValidMarkword){
+            var self = this, grid = [], headers = this.getHeaders();
 
             this.rows.forEach(function(row, ri){
                 
+                // exclude the first row ( table headers )
+                if(ri === 0 ) return;
+                
+                grid[ri] = [];
+                
                 // split each row in columns
-                var columns = row.split();
+                var columns = row.split(self.columnSeparator);
                 columns.forEach(function(column, ci){
-                    var oColumn = {
-                        content : column,
-                        type : typeof(column)
-                    };
+                    column = column.trim(); // trim empty spaces of value
                     
-                    grid[ri][ci] = oColumn;
+                    grid[ri][ci] = {
+                        content : column,
+                        column : headers[ci],
+                        type : typeof(column),
+                        isMarkword : isValidMarkword(column)
+                    };
                 });
             });
         
