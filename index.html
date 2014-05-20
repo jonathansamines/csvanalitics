@@ -134,7 +134,7 @@
                 }
                 
             .table tbody{ font-size : .8em;  }
-                .table tbody td{
+                .table td{
                     padding : .6em 1em;
                 }
                 .table tbody.group tr:nth-child(2n+1){
@@ -363,9 +363,20 @@
             // creating table headers
             var $header = this.createHeaders(headers);
             this.$table.append($header);
-              
+            
+            // count summary data
+            var countHighlighted = 0, countNumbers = 0, countWords = 1;
+
+            source.forEach(function(row, ri){
+                row.forEach(function(col, ci){
+                    if(col.type === 'number') countNumbers++;
+                    if(col.type === 'string') countWords++;
+                    if( isValidHighlight(col.content) ) countHighlighted++;
+                });
+            });
+            
             // creating data summary
-            var $footer = this.createSummary(headers.length , source.length, 0, 10, 20);
+            var $footer = this.createSummary(headers.length , source.length, countHighlighted, countNumbers, countWords);
             this.$table.append($footer);  
             
             // creating table body
@@ -432,12 +443,14 @@
                 var columns = self.getColumnsFromRow(row);
                 columns.forEach(function(column, ci){
                     column = column.trim(); // trim empty spaces of value
+                    column = column || '-';
                     
                     grid[ri][ci] = {
                         content : column,
                         column : self.headers[ci],
-                        type : Number.isNaN(column) ? 'string' : 'number'
+                        type : Number.isNaN(Number(column)) ? 'string' : 'number'
                     };
+                    console.log('The value : ' + column + ' is ' + grid[ri][ci].type);
                 });
             });
         
