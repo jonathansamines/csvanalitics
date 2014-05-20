@@ -155,32 +155,52 @@
     <script type='text/javascript'>
         
         $(document).on('ready', function(){
-            var $buttonProcessFile = $('#buttonProcessFile'),
-                $textFileSelection = $('#textFileSelection'),
-                $tableGridData = $('#tableGridData');
+            var application = new ApplicationView();
+            application.init();
+        });
+        
+        // ApplicationView
+        // main view of application state
+        var ApplicationView = function(){
+            
+            // init view components
+            this.$buttonProcessFile = $('#buttonProcessFile');
+            this.$textFileSelection = $('#textFileSelection');
+            this.$tableGridData = $('#tableGridData');
+        };
+        
+        ApplicationView.prototype.processFile = function(){
+            var self = this,
+                selector = new FileSelector(self.$textFileSelection[0]),
+                result = selector.readFileContent();
 
-            $buttonProcessFile.on('click', function(e){
+            result.done(function(data){
+                var analizer = new CsvAnalizer(data),
+                    source = analizer.getContentAsGrid(),
+                    table = new TableView(selector.getSelectedFile().name, self.$tableGridData);
+                
+                table.bind(source, analizer.headers, function(column){
+                    return column.toLowerCase() === "quetsol";
+                });
+            });
+
+            result.fail(function(error){
+                console.log(error);
+            });
+        };
+        
+        ApplicationView.prototype.init = function(){
+            var self = this;
+            
+            this.$buttonProcessFile.on('click', function(e){
                 e.preventDefault();
                 e.stopImmediatePropagation();
                 
-                var selector = new FileSelector($textFileSelection[0]);
-                var result = selector.readFileContent();
-                
-                result.done(function(data){
-                    var analizer = new CsvAnalizer(data);
-                    var source = analizer.getContentAsGrid(function(column){
-                        return column.toLowerCase() === "quetsol";
-                    });
-                    
-                    var table = new TableView(selector.getSelectedFile().name, $tableGridData);
-                    table.bind(source, analizer.getHeaders());
-                });
-                
-                result.fail(function(error){
-                    console.log(error);
-                });
+                // process file action
+                self.processFile();
             });
-        });
+        };
+        
         
         // TableView
         // Allow to create a view of table, from grid source
@@ -190,8 +210,11 @@
             this.$table = table;
             this.title = title;
             
-            var sortMode = 'DESC',
-                self = this;
+            this.createSortOptions();
+        };
+        
+        TableView.prototype.createSortOptions = function(){
+             var sortMode = 'DESC', self = this;
             
             // create sort options
             this.$table.on('click', '[data-sort-column]', function(e){
@@ -220,7 +243,7 @@
             return $head;
         };
         
-        TableView.prototype.createRows = function(rows){
+        TableView.prototype.createRows = function(rows, isValidHighlight){
             var $body = $('<tbody></tbody>');
             
             // loop rows to create table elements
@@ -231,7 +254,7 @@
                 row.forEach(function(column, ci){
                     var content = column.content;
                     
-                    if(column.isMarkword){
+                    if(isValidHighlight(content)){
                          content = '<strong class="label yellow round">' + column.content + '</strong>';
                     }
                     
@@ -246,7 +269,7 @@
         };
         
         
-        TableView.prototype.bind = function(source, headers){
+        TableView.prototype.bind = function(source, headers, isValidHighlight){
             this.source = source;
             
             // empty table items
@@ -261,42 +284,124 @@
             this.$table.append($header);
             
             // creating table body
-            var $body = this.createRows(source);
+            var $body = this.createRows(source, isValidHighlight);
             this.$table.append($body);
         };
         
         TableView.prototype.sort = function(column, mode){
             var $body = this.$table.find('tbody');
-            
-            
+
             // the order is specified by the following rules
             // 1. All numbers are smaller than letters, and are ordered according to javascript order algorithm
             // 2. The letters are ordered alphabethicly, accordying to javascript order algorithm
-            this.source.sort(function(row, nextRow){
-                for(var c = 0; c <= row.length - 1; c++){
-                    var column = row[c],
-                        nextColumn = nextRow[c];
-                    
-                    if(column.column !== column) continue;
-                    
-                    // verify the order mode
-                    if(mode.toLowerCase() === "ASC"){
-                        return column.content - nextColumn.content;
-                    }else{
-                        return nextColumn.content - column.content;
-                    }
-                    
+            var $columns = $body.find('td[data-column="' + column + '"]'),
+                $clone = {};
+            $columns.each(function(i, $column){
+                $column = $($column);
+                $clone = $column.parent().clone();
+                $column.parent().remove();
+                
+                var innerValue = $column.attr('data-column-value'),
+                    nextColumn = $($columns[i + 1]),
+                    nextValue = nextColumn && nextColumn.attr('data-column-value'),
+                    compareResult = -1;
+                
+                // verify the data type
+                if(innerValue === nextValue){
+                    compareResult = 0;
+                }else if(innerValue > nextValue){
+                    compareResult = 1;
+                }else{
+                    compareResult = -1;
+                }
+                
+                if(mode === "DESC" && compareResult > 0 ) compareResult = -1;
+                if(mode === "DESC" && compareResult < 0 ) compareResult = 1;
+                
+                console.log("The value " + innerValue + " of column " + column +" is "+ compareResult + " than " + nextValue);
+                
+                if(compareResult < 0){
+                    $clone.prependTo($body);
+                }else if(compareResult > 0){
+                    $clone.appendTo($body);
                 }
             });
-            
-            this.$table.find('tbody').empty();
-            var $body = this.createRows(this.source);
-            this.$table.append($body);
+
         };
         
+       
+        // CsvAnalizer Object
+        // Allows to inspect a CSV file and get the formatted content
+        // <param name='content'>Content from CSV formatted file</param>
+        var CsvAnalizer = function(content){
+            // regular expressions for content extracting
+            this.rowSeparator = '\n';
+            this.ruleValidation = /^\s*(?:'[^'\\]*(?:\\[\S\s][^'\\]*)*'|"[^"\\]*(?:\\[\S\s][^"\\]*)*"|[^,'"\s\\]*(?:\s+[^,'"\s\\]+)*)\s*(?:,\s*(?:'[^'\\]*(?:\\[\S\s][^'\\]*)*'|"[^"\\]*(?:\\[\S\s][^"\\]*)*"|[^,'"\s\\]*(?:\s+[^,'"\s\\]+)*)\s*)*$/;
+            this.ruleValue = /(?!\s*$)\s*(?:'([^'\\]*(?:\\[\S\s][^'\\]*)*)'|"([^"\\]*(?:\\[\S\s][^"\\]*)*)"|([^,'"\s\\]*(?:\s+[^,'"\s\\]+)*))\s*(?:,|$)/g;
+            
+            this.content = content;
+            
+            // get all rows from content
+            var rows = this.content.split(this.rowSeparator);
+            
+            this.headers = this.getColumnsFromRow(rows.shift());
+            this.rows = rows;
+            this.rows.pop(); // remove the last line ( is an empty row )
+        };
         
+        // Gets all columns from csv row using regular expressions for columns extracting
+        // <param name='row'>content row from csv file</param>
+        CsvAnalizer.prototype.getColumnsFromRow = function(row){
+             // Return NULL if input string is not well formed CSV string.
+            if (!this.ruleValidation.test(row)) return null;
+            
+            var columns = []; // Initialize array to receive values.
+            
+            row.replace(this.ruleValue,
+                function(m0, m1, m2, m3) {
+                    // Remove backslash from \' in single quoted values.
+                    if (m1 !== undefined) columns.push(m1.replace(/\\'/g, "'"));
+                    
+                    // Remove backslash from \" in double quoted values.
+                    else if (m2 !== undefined) columns.push(m2.replace(/\\"/g, '"'));
+                    
+                    else if (m3 !== undefined) columns.push(m3);
+                    
+                    return '';
+                });
+            
+            // Handle special case of empty last value.
+            if (/,\s*$/.test(row)) columns.push('');
+            
+            return columns;
+        };
+        
+        // Gets file contents as a grid of elements
+        CsvAnalizer.prototype.getContentAsGrid = function(){
+            var self = this, grid = [];
+
+            this.rows.forEach(function(row, ri){
+                grid[ri] = [];
+                
+                // split each row in columns
+                var columns = self.getColumnsFromRow(row);
+                columns.forEach(function(column, ci){
+                    column = column.trim(); // trim empty spaces of value
+                    
+                    grid[ri][ci] = {
+                        content : column,
+                        column : self.headers[ci]
+                    };
+                });
+            });
+        
+            return grid;
+        };
+        
+         
         // File selector object
         // Allows to get the contents from files selected trought input[file]
+        // <param name='fileInput'>Selected file from input[file]</param>
         var FileSelector = function(fileInput){
             this.fileInput = fileInput;
         };
@@ -305,7 +410,7 @@
             return this.fileInput.files[0];
         };
         
-        FileSelector.prototype.readFileContent = function(callback){
+        FileSelector.prototype.readFileContent = function(){
             var deferred = $.Deferred(),
                 promise = deferred.promise();
             
@@ -335,59 +440,6 @@
             }
             
             return promise;
-        };
-        
-        
-        // CsvAnalizar Object
-        var CsvAnalizer = function(file){
-            this.file = file;
-            this.rows = this.file.split(this.rowSeparator);
-            this.rows.pop(); // remove the last line ( is an empty row )
-        };
-        
-        CsvAnalizer.prototype.rowSeparator = '\n';
-        CsvAnalizer.prototype.columnSeparator = ',';
-        
-        // Gets the headers of CSV file
-        CsvAnalizer.prototype.getHeaders = function(){
-            var header = this.rows[0];
-            
-            var headers = headers = header.split(this.columnSeparator)
-            
-            return headers;
-        };
-        
-        // Verify if there is any content as rows
-        CsvAnalizer.prototype.isContentEmpty = function(){
-            return this.rows.length === 0;
-        };
-        
-        // Gets file contents as a grid of elements
-        CsvAnalizer.prototype.getContentAsGrid = function(isValidMarkword){
-            var self = this, grid = [], headers = this.getHeaders();
-
-            this.rows.forEach(function(row, ri){
-                
-                // exclude the first row ( table headers )
-                if(ri === 0 ) return;
-                
-                grid[ri] = [];
-                
-                // split each row in columns
-                var columns = row.split(self.columnSeparator);
-                columns.forEach(function(column, ci){
-                    column = column.trim(); // trim empty spaces of value
-                    
-                    grid[ri][ci] = {
-                        content : column,
-                        column : headers[ci],
-                        type : typeof(column),
-                        isMarkword : isValidMarkword(column)
-                    };
-                });
-            });
-        
-            return grid;
         };
         
         
