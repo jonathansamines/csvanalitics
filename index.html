@@ -122,6 +122,16 @@
                 padding : 1em 1.4em;
                 text-align : center;
             }
+                .table th.sort-header:before{
+                    font-weight: bold;
+                    color : #333;
+                }
+                .table th.sort-down:before{
+                    content : '\2191';
+                }
+                .table th.sort-up:before{
+                    content : '\2193';
+                }
                 
             .table tbody{ font-size : .8em;  }
                 .table tbody td{
@@ -131,7 +141,7 @@
                     background-color : #fcfcfc;
                 }
                 
-            .table tbody.summary{
+            .table tfoot.summary{
                 background-color : #f4f4f4;
                 text-align : left;
             }
@@ -189,6 +199,7 @@
     </section>
     
     <script src='https://code.jquery.com/jquery-1.11.1.js'></script>
+    <script src='http://cdnjs.cloudflare.com/ajax/libs/tablesort/1.6.1/tablesort.min.js'></script>
     <script type='text/javascript'>
         
         $(document).on('ready', function(){
@@ -197,7 +208,7 @@
         });
         
         // ApplicationView
-        // main view of application state
+        // Main view, for general application state
         var ApplicationView = function(){
             
             // init view components
@@ -208,25 +219,36 @@
             this.$tableGridData = $('#tableGridData');
         };
         
+        // Process a file content for display on TableView
         ApplicationView.prototype.processFile = function(){
-            var self = this,
-                selector = new FileSelector(self.$textFileSelection[0]),
-                result = selector.readFileContent();
-
-            result.done(function(data){    
-                var analizer = new CsvAnalizer(data),
-                    source = analizer.getContentAsGrid(),
-                    table = new TableView(selector.getSelectedFile().name, self.$tableGridData);
+            var self = this;
+            
+            // get the file content
+            var chooser = new FileSelector(self.$textFileSelection[0]);
+            var reader = chooser.readFileContent();
+            
+            reader.done(function(content){
                 
-                table.bind(source, analizer.headers, function(column){
+                // analize the file content with CsvAnalizer for extracting data as Grid
+                var analizer = new CsvAnalizer(content),
+                    tableData = analizer.getContentAsGrid();
+                    
+                // render tableData in TableView
+                var table = new TableView(chooser.getSelectedFile().name, self.$tableGridData);
+                table.render(tableData, analizer.headers, function(column){
                     return column.toLowerCase() === "quetsol";
                 });
                 
+                // make table sortable
+                new Tablesort(self.$tableGridData[0]);
+                
+                // display success alert
                 var $info = $('<div class="alert green">Información cargada correctamente.</div>');
                 self.$informationHolder.empty().append($info);
             });
-
-            result.fail(function(error){
+            
+            reader.fail(function(error){
+                // display error alert
                 var $error = $('<div class="alert red">' + error + '</div>');
                 self.$informationHolder.empty().append($error);
             });
@@ -252,26 +274,6 @@
         var TableView = function(title, table){
             this.$table = table;
             this.title = title;
-            
-            this.createSortOptions();
-        };
-        
-        TableView.prototype.createSortOptions = function(){
-             var sortMode = 'DESC', self = this;
-            
-            // create sort options
-            this.$table.on('click', '[data-sort-column]', function(e){
-                e.preventDefault();
-                e.stopImmediatePropagation();
-                
-                self.sort($(this).attr('data-sort-column'), sortMode);
-                
-                if(sortMode === 'ASC'){
-                    sortMode = 'DESC';
-                }else{
-                    sortMode = 'ASC';
-                }
-            });
         };
         
         TableView.prototype.createHeaders = function(headers){
@@ -315,7 +317,7 @@
         };
         
         TableView.prototype.createSummary = function(numberOfColumns, numberOfRows, numberOfHighlighted, howManyNumbers, howManyString){
-            var $footer = $('<tbody class="summary"></tbody>'),
+            var $footer = $('<tfoot class="summary"></tfoot>'),
                 $row = $('<tr></tr>'),
                 $column = $('<td></td>');
             
@@ -323,8 +325,6 @@
             // this is achieved by computing the middle number of columns
             var base = Number((numberOfColumns / 2).toFixed()),
                 padding = numberOfColumns % 2;
-            
-            console.log(padding);
             
             // first row
             var $first = $row.clone();
@@ -354,7 +354,7 @@
         };
         
         
-        TableView.prototype.bind = function(source, headers, isValidHighlight){
+        TableView.prototype.render = function(source, headers, isValidHighlight){
             this.source = source;
             
             // empty table items
@@ -363,7 +363,7 @@
             // creating table headers
             var $header = this.createHeaders(headers);
             this.$table.append($header);
-  
+              
             // creating data summary
             var $footer = this.createSummary(headers.length , source.length, 0, 10, 20);
             this.$table.append($footer);  
@@ -374,48 +374,7 @@
             
         };
         
-        TableView.prototype.sort = function(column, mode){
-            var $body = this.$table.find('tbody');
-
-            // the order is specified by the following rules
-            // 1. All numbers are smaller than letters, and are ordered according to javascript order algorithm
-            // 2. The letters are ordered alphabethicly, accordying to javascript order algorithm
-            var $columns = $body.find('td[data-column="' + column + '"]'),
-                $clone = {};
-            $columns.each(function(i, $column){
-                $column = $($column);
-                $clone = $column.parent().clone();
-                $column.parent().remove();
-                
-                var innerValue = $column.attr('data-column-value'),
-                    nextColumn = $($columns[i + 1]),
-                    nextValue = nextColumn && nextColumn.attr('data-column-value'),
-                    compareResult = -1;
-                
-                // verify the data type
-                if(innerValue === nextValue){
-                    compareResult = 0;
-                }else if(innerValue > nextValue){
-                    compareResult = 1;
-                }else{
-                    compareResult = -1;
-                }
-                
-                if(mode === "DESC" && compareResult > 0 ) compareResult = -1;
-                if(mode === "DESC" && compareResult < 0 ) compareResult = 1;
-                
-                console.log("The value " + innerValue + " of column " + column +" is "+ compareResult + " than " + nextValue);
-                
-                if(compareResult < 0){
-                    $clone.prependTo($body);
-                }else if(compareResult > 0){
-                    $clone.appendTo($body);
-                }
-            });
-
-        };
         
-       
         // CsvAnalizer Object
         // Allows to inspect a CSV file and get the formatted content
         // <param name='content'>Content from CSV formatted file</param>
@@ -476,7 +435,8 @@
                     
                     grid[ri][ci] = {
                         content : column,
-                        column : self.headers[ci]
+                        column : self.headers[ci],
+                        type : Number.isNaN(column) ? 'string' : 'number'
                     };
                 });
             });
