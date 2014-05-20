@@ -2,12 +2,12 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>CSV Analitics</title>
+    <title>CSV Analitics - CSV Analitics made easy!</title>
     
     <!-- Stylesheets -->
     <link rel='stylesheet' href='http://cdnjs.cloudflare.com/ajax/libs/normalize/3.0.1/normalize.min.css' />
     
-    <!-- Application layout styles -->    
+    <!-- Application Component Styles -->    
     <style>
         html, body{
             background-color : #f8f8f8;
@@ -65,13 +65,13 @@
             
             -webkit-transition : 1s all ease-out;
         }
-        .button.green{
-            color : #fafafa;
-            background-color : #90A959;
-        }
-        .button.green:hover, .button.green:focus{
-            background-color : #799514;
-        }
+            .button.green{
+                background-color : #90A959;
+                color : #fafafa;
+            }
+            .button.green:hover, .button.green:focus{
+                background-color : #799514;
+            }
         
         /* label component */
         .label{
@@ -79,8 +79,8 @@
             padding : .2em .5em;
         }
             .label.yellow{
-                color : #fafafa;
                 background-color : #F7CA87;
+                color : #fafafa;
             }
         
         /*  table component */
@@ -108,9 +108,14 @@
                 .table tbody td{
                     padding : .6em 1em;
                 }
-                .table tbody tr:nth-child(2n+1){
+                .table tbody.group tr:nth-child(2n+1){
                     background-color : #fcfcfc;
                 }
+                
+            .table tbody.summary{
+                text-align : left;
+                background-color : #f4f4f4;
+            }
         
         /* application styles */
         header{
@@ -140,7 +145,7 @@
         <h1>
             <a href='#' title='CSV Analitics'>CSV Analitics</a>
         </h1>
-        <h4>CSV Analitics make easy!</h4>
+        <h4>CSV Analitics made easy!</h4>
     </header>
     
     <section id='application' class='container center'>
@@ -234,19 +239,22 @@
         };
         
         TableView.prototype.createHeaders = function(headers){
-            var $head = $('<thead><tr></tr></thead>');
+            var $head = $('<thead></thead>'),
+                $row = $('<tr></tr>');
                 
             // add each header title as thead item
             headers.forEach(function(header, i){
                 var $header = $('<th><a href="#" title="' + header + '" data-sort-column="' + header + '">' + header + '</a></th>');
-                $head.append($header);
+                $row.append($header);
             });
+            
+            $head.append($row);
             
             return $head;
         };
         
         TableView.prototype.createRows = function(rows, isValidHighlight){
-            var $body = $('<tbody></tbody>');
+            var $body = $('<tbody class="group"></tbody>');
             
             // loop rows to create table elements
             rows.forEach(function(row, ri){
@@ -270,6 +278,45 @@
             return $body;
         };
         
+        TableView.prototype.createSummary = function(numberOfColumns, numberOfRows, numberOfHighlighted, howManyNumbers, howManyString){
+            var $footer = $('<tbody class="summary"></tbody>'),
+                $row = $('<tr></tr>'),
+                $column = $('<td></td>');
+            
+            // the summary layout, is a two rows layout
+            // this is achieved by computing the middle number of columns
+            var base = Number((numberOfColumns / 2).toFixed()),
+                padding = numberOfColumns % 2;
+            
+            console.log(padding);
+            
+            // first row
+            var $first = $row.clone();
+            
+            $column.clone().attr('colspan', base )
+                   .html('<strong>Number of rows :</strong> ' + numberOfRows)
+                   .appendTo($first);
+
+            $column.clone().attr('colspan', base + padding)
+                   .html('<strong>Number of highlighted Words : </strong>' + numberOfHighlighted)
+                   .appendTo($first);
+
+            // second row
+            var $second = $row.clone();
+            
+            $column.clone().attr('colspan', base)
+                   .html('<strong>Total amount of Numbers : </strong>' + howManyNumbers)
+                   .appendTo($second);
+
+            $column.clone().attr('colspan', base + padding)
+                   .html('<strong>Total amount of Strings : </strong>' + howManyString)
+                   .appendTo($second);
+            
+            $footer.append($first).append($second);
+            
+            return $footer;
+        };
+        
         
         TableView.prototype.bind = function(source, headers, isValidHighlight){
             this.source = source;
@@ -280,10 +327,15 @@
             // creating table headers
             var $header = this.createHeaders(headers);
             this.$table.append($header);
+  
+            // creating data summary
+            var $footer = this.createSummary(headers.length , source.length, 0, 10, 20);
+            this.$table.append($footer);  
             
             // creating table body
             var $body = this.createRows(source, isValidHighlight);
             this.$table.append($body);
+            
         };
         
         TableView.prototype.sort = function(column, mode){
