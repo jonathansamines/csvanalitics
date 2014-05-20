@@ -9,19 +9,20 @@
     
     <!-- Application Component Styles -->    
     <style>
+        /* global style fixes */
         html, body{
             background-color : #f8f8f8;
             font-size : 16px;
             color : #303030;
         }
-        a{ color : #0162A3; text-decoration : none; }
-        h1, h2, h3, h4, h5, h6, ul { margin : 0; }
-        input[type='file']{ font-size : .8em; }
-        select{ 
-            margin : .5em 1em; 
-            padding : .2em .8em;
-            border : 1px solid #ccc;
-        }
+            a{ color : #0162A3; text-decoration : none; }
+            h1, h2, h3, h4, h5, h6, ul { margin : 0; }
+            input[type='file']{ font-size : .8em; }
+            select{ 
+                border : 1px solid #ccc;
+                margin : .5em 1em; 
+                padding : .2em .8em;
+            }
         
         /* layout components */
         .container{
@@ -37,8 +38,8 @@
         .round{
             -webkit-border-radius : 2px 2px;
                -moz-border-radius : 2px 2px;
-                 -o-border-radius : 2px 2px;
                 -ms-border-radius : 2px 2px;
+                 -o-border-radius : 2px 2px;
                     border-radius : 2px 2px;
         }
         
@@ -51,16 +52,16 @@
         
         /* toolbar component */
         .toolbar{
-            width : auto;
-            padding : .7em 1em;
             background-color : #fafafa;
+            padding : .7em 1em;
             overflow: hidden;
+            width : auto;
         }
         
         /* button component */
         .button{
-            display: inline-block;
             border : none;
+            display: inline-block;
             padding : .4em .8em;
             
             -webkit-transition : 1s all ease-out;
@@ -71,6 +72,24 @@
             }
             .button.green:hover, .button.green:focus{
                 background-color : #799514;
+                outline : none;
+            }
+        
+        /* alert component */
+        .alert{
+            display: block;
+            font-weight : bold;
+            margin-top : .2em;
+            margin-bottom : .2em;
+            padding : .6em 1em;
+        }
+            .alert.red{
+                background-color : #AC4142;
+                color : #fafafa;
+            }
+            .alert.green{
+                background-color : #90A959;
+                color : #fafafa;
             }
         
         /* label component */
@@ -82,6 +101,7 @@
                 background-color : #F7CA87;
                 color : #fafafa;
             }
+            
         
         /*  table component */
         .table{ text-align : center; color : #505050; width : 95%; }
@@ -102,7 +122,6 @@
                 padding : 1em 1.4em;
                 text-align : center;
             }
-            .table.sorted thead th{}
                 
             .table tbody{ font-size : .8em;  }
                 .table tbody td{
@@ -113,8 +132,8 @@
                 }
                 
             .table tbody.summary{
-                text-align : left;
                 background-color : #f4f4f4;
+                text-align : left;
             }
         
         /* application styles */
@@ -122,7 +141,12 @@
             background-color : #0162A3;
             margin-top : 1em;
             padding : .5em 2.5em;
+            
             -webkit-box-shadow : 2px 2px 3px #ccc;
+               -moz-box-shadow : 2px 2px 3px #ccc;
+                -ms-box-shadow : 2px 2px 3px #ccc;
+                 -o-box-shadow : 2px 2px 3px #ccc;
+                    box-shadow : 2px 2px 3px #ccc;
         }
         header h1 a{ color : #fafafa; }
         header h4{ color : #ccc; }
@@ -132,7 +156,12 @@
             margin-bottom : 3em;
             min-height : 800px;
             padding : 1em 1.5em 2.5em 1.5em;
+            
             -webkit-box-shadow : 2px 2px 5px #eee;
+               -moz-box-shadow : 2px 2px 5px #eee;
+                -ms-box-shadow : 2px 2px 5px #eee;
+                 -o-box-shadow : 2px 2px 5px #eee;
+                    box-shadow : 2px 2px 5px #eee;
         }
         
     </style>
@@ -150,10 +179,11 @@
     
     <section id='application' class='container center'>
         <div class='toolbar center'>
-            <input id='textFileSelection' type='file' accept='text/csv, .csv'>
+            <input id='textFileSelection' type='file' accept='.csv'>
             <button id='buttonProcessFile' class='button round green right'>Process File</button>
         </div>
-        <div class="content">
+        <div id='informationHolder'></div>
+        <div class='content'>
             <table id='tableGridData' class='table sorted center'></table>
         </div>
     </section>
@@ -171,6 +201,8 @@
         var ApplicationView = function(){
             
             // init view components
+            this.$application = $('#application');
+            this.$informationHolder = $('#informationHolder');
             this.$buttonProcessFile = $('#buttonProcessFile');
             this.$textFileSelection = $('#textFileSelection');
             this.$tableGridData = $('#tableGridData');
@@ -181,7 +213,7 @@
                 selector = new FileSelector(self.$textFileSelection[0]),
                 result = selector.readFileContent();
 
-            result.done(function(data){
+            result.done(function(data){    
                 var analizer = new CsvAnalizer(data),
                     source = analizer.getContentAsGrid(),
                     table = new TableView(selector.getSelectedFile().name, self.$tableGridData);
@@ -189,10 +221,14 @@
                 table.bind(source, analizer.headers, function(column){
                     return column.toLowerCase() === "quetsol";
                 });
+                
+                var $info = $('<div class="alert green">Información cargada correctamente.</div>');
+                self.$informationHolder.empty().append($info);
             });
 
             result.fail(function(error){
-                console.log(error);
+                var $error = $('<div class="alert red">' + error + '</div>');
+                self.$informationHolder.empty().append($error);
             });
         };
         
