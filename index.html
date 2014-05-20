@@ -104,11 +104,13 @@
             }
             .table.sorted thead th{}
                 
-                .table tbody{}
-                    .table tbody{ font-size : .8em;  }
-                    .table tbody td{
-                        padding : .6em 1em;
-                    }
+            .table tbody{ font-size : .8em;  }
+                .table tbody td{
+                    padding : .6em 1em;
+                }
+                .table tbody tr:nth-child(2n+1){
+                    background-color : #fcfcfc;
+                }
         
         /* application styles */
         header{
@@ -143,7 +145,7 @@
     
     <section id='application' class='container center'>
         <div class='toolbar center'>
-            <input id='textFileSelection' type='file'>
+            <input id='textFileSelection' type='file' accept='text/csv, .csv'>
             <button id='buttonProcessFile' class='button round green right'>Process File</button>
         </div>
         <div class="content">
@@ -274,10 +276,6 @@
             
             // empty table items
             this.$table.empty();
-                        
-            // creating table title
-            var $caption = $('<caption> Selected filename : ' + this.title + '</caption>');
-            this.$table.append($caption);
             
             // creating table headers
             var $header = this.createHeaders(headers);
